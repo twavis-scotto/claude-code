@@ -119,7 +119,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
     <button class="rev" id="bothRev">◀ Rückwärts</button>
     <button class="stop" id="bothStop">■ Stopp</button>
   </section>
-  <p class="hint">Jede Spur startet mit einem Beispielklang. Wenn das Mikrofon hier gesperrt ist, nimm mit „Datei laden“ eine Audiodatei. Auf dem Handy kannst du dort auch direkt aufnehmen.</p>
+  <p class="hint">Jede Spur startet mit einem Beispielklang. In der Claude-App öffnet „Aufnehmen“ die Aufnahme oder die Dateiauswahl deines Handys. <strong>Android:</strong> Es startet meist direkt der Sprachrekorder. <strong>iPhone:</strong> Nimm in der Sprachmemos-App auf, tippe auf Teilen → „In Dateien sichern“ und wähle die Datei hier aus. Kein Ton auf dem iPhone? Stell den Lautlos-Schalter aus.</p>
 </div>
 
 <template id="deckTpl">
@@ -151,6 +151,12 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 <script>
 (() => {
   let ctx = null;
+  // In the Claude app the page may not use the microphone: then "Aufnehmen" opens the phone's own recorder / file picker.
+  let micBlocked = !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  try { if (document.featurePolicy && !document.featurePolicy.allowsFeature("microphone")) micBlocked = true; } catch (e) {}
+  try { navigator.permissions.query({ name: "microphone" }).then(p => { if (p.state === "denied") micBlocked = true; }, () => {}); } catch (e) {}
+  // iPhone: play sound even when the silent switch is on
+  try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) {}
   function audio() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === "suspended") ctx.resume();
@@ -211,7 +217,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
       this.headEl = this.q(".head");
       this.statusEl = this.q(".status");
       this.timerEl = this.q(".timer");
-      this.q(".rec").addEventListener("click", () => this.recording ? this.stopRec() : this.startRec());
+      this.q(".rec").addEventListener("click", () => {
+        if (this.recording) return this.stopRec();
+        if (micBlocked) { this.stop(); this.q(".file input").click(); return; }
+        this.startRec();
+      });
       this.q(".fwd").addEventListener("click", () => this.play(false));
       this.q(".rev").addEventListener("click", () => this.play(true));
       this.q(".stop").addEventListener("click", () => this.stop());
@@ -285,15 +295,12 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
     }
     async startRec() {
       this.stop();
-      if (!navigator.mediaDevices || !window.MediaRecorder) {
-        this.say("Aufnehmen geht in diesem Browser nicht. Nutze „Datei laden“.", true);
-        return;
-      }
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch (e) {
-        this.say("Kein Zugriff aufs Mikrofon. Erlaube es im Browser oder nutze „Datei laden“.", true);
+        micBlocked = true;
+        this.say("Das Mikrofon ist hier gesperrt. Tipp noch einmal auf „Aufnehmen“, dann öffnet sich die Aufnahme deines Handys.", true);
         return;
       }
       audio();
