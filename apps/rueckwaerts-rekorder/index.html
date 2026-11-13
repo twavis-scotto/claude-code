@@ -137,7 +137,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
     <div class="row">
       <button class="rec"><span class="dot"></span><span class="rec-label">Aufnehmen</span></button>
       <span class="timer">00:00</span>
-      <label class="file">Datei laden<input type="file" accept="audio/*" capture></label>
+      <label class="file">Datei laden<input type="file" accept="audio/*,video/*,.m4a,.mp3,.wav,.aac,.caf,.qta,.mp4,.mov"></label>
     </div>
     <div class="play-row">
       <button class="fwd">▶ Original</button>
@@ -227,7 +227,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
       this.q(".stop").addEventListener("click", () => this.stop());
       this.q(".file input").addEventListener("change", e => {
         const f = e.target.files && e.target.files[0];
-        if (f) this.loadBlob(f, f.name);
+        if (f) { this.say("Lade " + f.name + " …"); this.loadBlob(f, f.name); }
         e.target.value = "";
       });
       document.getElementById("decks").appendChild(el);
@@ -341,11 +341,12 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
           const p = audio().decodeAudioData(data, res, rej);
           if (p && p.catch) p.catch(rej);
         });
-        if (!buf.length) throw new Error("leer");
+        if (!buf.length) throw new Error("Datei ist leer");
         this.setBuffer(buf, false);
         this.say(name ? "Geladen: " + name : "Aufnahme fertig. Spiel sie normal oder rückwärts ab.");
       } catch (e) {
-        this.say("Die Aufnahme ließ sich nicht lesen. Versuch es noch einmal oder mit einer anderen Datei.", true);
+        const info = (name || "Aufnahme") + " (" + (blob.type || "unbekannter Typ") + ", " + Math.round(blob.size / 1024) + " KB)";
+        this.say("Konnte " + info + " nicht lesen: " + ((e && (e.message || e.name)) || "unbekannter Fehler") + ". Schick mir diesen Text, dann kann ich es beheben.", true);
       }
     }
   }
