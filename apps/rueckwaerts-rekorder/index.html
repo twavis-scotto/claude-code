@@ -1,5 +1,17 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Rückwärts-Rekorder</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Rückwärts">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#11151c">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -32,7 +44,9 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 body {
+  margin: 0;
   background: var(--bg); color: var(--ink);
   font-family: var(--display); font-size: 15px; line-height: 1.5;
   padding-block: 28px 40px;
@@ -104,7 +118,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 @media (max-width: 420px) { .play-row { grid-template-columns: 1fr 1fr; } .stop { grid-column: 1 / -1; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <header class="top">
     <h1>Rückwärts-<span class="flip">Rekorder</span></h1>
@@ -119,7 +134,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
     <button class="rev" id="bothRev">◀ Rückwärts</button>
     <button class="stop" id="bothStop">■ Stopp</button>
   </section>
-  <p class="hint">Jede Spur startet mit einem Beispielklang. In der Claude-App öffnet „Aufnehmen“ die Aufnahme oder die Dateiauswahl deines Handys. <strong>Android:</strong> Es startet meist direkt der Sprachrekorder. <strong>iPhone:</strong> Nimm in der Sprachmemos-App auf, tippe auf Teilen → „In Dateien sichern“ und wähle die Datei hier aus. Kein Ton auf dem iPhone? Stell den Lautlos-Schalter aus.</p>
+  <p class="hint">Jede Spur startet mit einem Beispielklang. Tipp auf „Aufnehmen“ und erlaube das Mikrofon. Ein zweiter Tipp beendet die Aufnahme. Kein Ton auf dem iPhone? Stell den Lautlos-Schalter aus.</p>
 </div>
 
 <template id="deckTpl">
@@ -362,3 +377,5 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   new MutationObserver(() => decks.forEach(d => d.draw())).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 })();
 </script>
+</body>
+</html>
