@@ -1,0 +1,356 @@
+<title>Rückwärts-Rekorder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: two tape-deck panels side by side (stacked on phones), shared transport bar below. */
+:root {
+  --bg: #eceff3;
+  --panel: #ffffff;
+  --ink: #1b2230;
+  --muted: #5b6577;
+  --line: #d3d9e2;
+  --wave: #9aa6b8;
+  --rec: #d1293d;
+  --orig: #0f766e;
+  --rev: #b4530a;
+  --on-accent: #ffffff;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151c; --panel: #1a2029; --ink: #e8ecf2; --muted: #98a2b3; --line: #2b3341;
+    --wave: #5d6a7e; --rec: #f0475a; --orig: #2dd4bf; --rev: #f59e0b; --on-accent: #11151c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151c; --panel: #1a2029; --ink: #e8ecf2; --muted: #98a2b3; --line: #2b3341;
+  --wave: #5d6a7e; --rec: #f0475a; --orig: #2dd4bf; --rev: #f59e0b; --on-accent: #11151c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--display); font-size: 15px; line-height: 1.5;
+  padding-block: 28px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1060px; margin: 0 auto; display: grid; gap: 22px; }
+.top h1 { font-size: clamp(1.7rem, 4vw, 2.4rem); font-weight: 700; margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+.top h1 .flip { display: inline-block; transform: scaleX(-1); color: var(--rev); }
+.top p { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
+
+.decks { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.deck {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 18px; display: grid; gap: 14px; min-width: 0;
+}
+.deck-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.deck-head .tag { font-size: 1.25rem; font-weight: 700; }
+.deck-head .len { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.badge {
+  margin-left: auto; font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px;
+}
+
+.wave { position: relative; height: 110px; border-radius: 10px; background: var(--bg); overflow: hidden; }
+.wave canvas { width: 100%; height: 100%; display: block; }
+.head { position: absolute; top: 0; bottom: 0; width: 2px; left: 0; background: var(--ink); opacity: 0; pointer-events: none; }
+.deck.playing-orig .head { opacity: 1; background: var(--orig); }
+.deck.playing-rev .head { opacity: 1; background: var(--rev); }
+.dir { position: absolute; top: 8px; left: 10px; font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.deck.playing-orig .dir { color: var(--orig); }
+.deck.playing-rev .dir { color: var(--rev); }
+.deck.recording .wave { outline: 2px solid var(--rec); outline-offset: -2px; }
+
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+button, .file {
+  font: 500 0.95rem var(--display); color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px;
+  transition: background .15s, border-color .15s, color .15s;
+}
+button:hover:not(:disabled), .file:hover { border-color: var(--muted); }
+button:focus-visible, .file:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.rec { border-color: var(--rec); color: var(--rec); }
+.rec .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--rec); }
+.deck.recording .rec { background: var(--rec); color: var(--on-accent); }
+.deck.recording .rec .dot { background: var(--on-accent); border-radius: 2px; }
+.timer { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); min-width: 4.5ch; }
+.deck.recording .timer { color: var(--rec); }
+.file input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.file { position: relative; margin-left: auto; font-size: 0.85rem; color: var(--muted); }
+
+.play-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; }
+.fwd { border-color: var(--orig); color: var(--orig); justify-content: center; }
+.rev { border-color: var(--rev); color: var(--rev); justify-content: center; }
+.deck.playing-orig .fwd { background: var(--orig); color: var(--on-accent); }
+.deck.playing-rev .rev { background: var(--rev); color: var(--on-accent); }
+.stop { justify-content: center; }
+.status { margin: 0; min-height: 1.4em; font-size: 0.85rem; color: var(--muted); }
+.status.err { color: var(--rec); }
+
+.both {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  border-top: 1px solid var(--line); padding-top: 18px;
+}
+.both .label { font-family: var(--mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-right: 4px; }
+.hint { color: var(--muted); font-size: 0.85rem; margin: 0; max-width: 70ch; }
+@media (max-width: 420px) { .play-row { grid-template-columns: 1fr 1fr; } .stop { grid-column: 1 / -1; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Rückwärts-<span class="flip">Rekorder</span></h1>
+    <p>Nimm etwas auf und hör es normal oder rückwärts. Zwei Spuren nebeneinander, jede für sich, oder beide zusammen.</p>
+  </header>
+
+  <main class="decks" id="decks"></main>
+
+  <section class="both" aria-label="Beide Spuren">
+    <span class="label">Beide Spuren</span>
+    <button class="fwd" id="bothFwd">▶ Original</button>
+    <button class="rev" id="bothRev">◀ Rückwärts</button>
+    <button class="stop" id="bothStop">■ Stopp</button>
+  </section>
+  <p class="hint">Jede Spur startet mit einem Beispielklang. Wenn das Mikrofon hier gesperrt ist, nimm mit „Datei laden“ eine Audiodatei. Auf dem Handy kannst du dort auch direkt aufnehmen.</p>
+</div>
+
+<template id="deckTpl">
+  <section class="deck">
+    <div class="deck-head">
+      <span class="tag"></span>
+      <span class="len">0,0 s</span>
+      <span class="badge">Beispiel</span>
+    </div>
+    <div class="wave">
+      <canvas></canvas>
+      <div class="head"></div>
+      <span class="dir"></span>
+    </div>
+    <div class="row">
+      <button class="rec"><span class="dot"></span><span class="rec-label">Aufnehmen</span></button>
+      <span class="timer">00:00</span>
+      <label class="file">Datei laden<input type="file" accept="audio/*" capture></label>
+    </div>
+    <div class="play-row">
+      <button class="fwd">▶ Original</button>
+      <button class="rev">◀ Rückwärts</button>
+      <button class="stop" aria-label="Stopp">■</button>
+    </div>
+    <p class="status" role="status"></p>
+  </section>
+</template>
+
+<script>
+(() => {
+  let ctx = null;
+  function audio() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+  const fmtSec = s => s.toFixed(1).replace(".", ",") + " s";
+  const fmtClock = s => String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  function makeBuffer(seconds, fill) {
+    const rate = 44100, n = Math.floor(seconds * rate);
+    const buf = new AudioBuffer({ length: n, numberOfChannels: 1, sampleRate: rate });
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = fill(i / rate);
+    return buf;
+  }
+  // Example A: a rising "whoop" with a quick attack and long fade
+  const sampleA = () => {
+    let phase = 0;
+    return makeBuffer(1.8, t => {
+      const f = 260 * Math.pow(5, Math.min(t / 1.2, 1));
+      phase += 2 * Math.PI * f / 44100;
+      const env = Math.min(t / 0.01, 1) * Math.exp(-t * 2.2);
+      return 0.55 * env * (Math.sin(phase) + 0.3 * Math.sin(2 * phase));
+    });
+  };
+  // Example B: three plucked notes (C, E, G); reversed they swell in
+  const sampleB = () => {
+    const notes = [[0, 523.25], [0.45, 659.25], [0.9, 783.99]];
+    return makeBuffer(2.2, t => {
+      let v = 0;
+      for (const [start, f] of notes) {
+        const u = t - start;
+        if (u < 0) continue;
+        const env = Math.min(u / 0.004, 1) * Math.exp(-u * 4.5);
+        v += env * (Math.sin(2 * Math.PI * f * u) + 0.4 * Math.sin(4 * Math.PI * f * u) + 0.15 * Math.sin(6 * Math.PI * f * u));
+      }
+      return 0.35 * v;
+    });
+  };
+
+  function reverseBuffer(buf) {
+    const out = new AudioBuffer({ length: buf.length, numberOfChannels: buf.numberOfChannels, sampleRate: buf.sampleRate });
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      const src = buf.getChannelData(c), dst = out.getChannelData(c);
+      for (let i = 0, n = src.length; i < n; i++) dst[i] = src[n - 1 - i];
+    }
+    return out;
+  }
+
+  class Deck {
+    constructor(name, sample) {
+      const el = document.getElementById("deckTpl").content.firstElementChild.cloneNode(true);
+      this.el = el;
+      this.q = s => el.querySelector(s);
+      this.q(".tag").textContent = "Spur " + name;
+      this.canvas = this.q("canvas");
+      this.headEl = this.q(".head");
+      this.statusEl = this.q(".status");
+      this.timerEl = this.q(".timer");
+      this.q(".rec").addEventListener("click", () => this.recording ? this.stopRec() : this.startRec());
+      this.q(".fwd").addEventListener("click", () => this.play(false));
+      this.q(".rev").addEventListener("click", () => this.play(true));
+      this.q(".stop").addEventListener("click", () => this.stop());
+      this.q(".file input").addEventListener("change", e => {
+        const f = e.target.files && e.target.files[0];
+        if (f) this.loadBlob(f, f.name);
+        e.target.value = "";
+      });
+      document.getElementById("decks").appendChild(el);
+      this.setBuffer(sample(), true);
+      this.say("Beispielklang geladen. Drück „Aufnehmen“ für deinen eigenen.");
+    }
+    say(msg, err) { this.statusEl.textContent = msg; this.statusEl.classList.toggle("err", !!err); }
+    setBuffer(buf, isSample) {
+      this.stop();
+      this.buf = buf;
+      this.revBuf = reverseBuffer(buf);
+      this.q(".len").textContent = fmtSec(buf.duration);
+      this.q(".badge").hidden = !isSample;
+      this.draw();
+    }
+    draw() {
+      const c = this.canvas, dpr = window.devicePixelRatio || 1;
+      const w = c.clientWidth, h = c.clientHeight;
+      if (!w || !h) return;
+      c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+      const g = c.getContext("2d");
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      g.strokeStyle = css("--line"); g.lineWidth = 1;
+      g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+      if (!this.buf) return;
+      const d = this.buf.getChannelData(0), step = d.length / w;
+      let peak = 0.0001;
+      for (let i = 0; i < d.length; i += 16) peak = Math.max(peak, Math.abs(d[i]));
+      const scale = (h / 2 - 8) / peak;
+      g.fillStyle = css("--wave");
+      for (let x = 0; x < w; x += 2) {
+        let mn = 0, mx = 0;
+        const a = Math.floor(x * step), b = Math.min(d.length, Math.floor((x + 2) * step));
+        for (let i = a; i < b; i++) { const v = d[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+        const top = h / 2 - mx * scale, bot = h / 2 - mn * scale;
+        g.fillRect(x, top, 1.5, Math.max(1, bot - top));
+      }
+    }
+    play(reverse) {
+      if (!this.buf || this.recording) return;
+      this.stop();
+      const ac = audio();
+      const src = ac.createBufferSource();
+      src.buffer = reverse ? this.revBuf : this.buf;
+      src.connect(ac.destination);
+      src.onended = () => { if (this.src === src) this.stop(); };
+      this.src = src; this.reverse = reverse; this.startedAt = ac.currentTime;
+      src.start();
+      this.el.classList.add(reverse ? "playing-rev" : "playing-orig");
+      this.q(".dir").textContent = reverse ? "◀ rückwärts" : "▶ original";
+      const tick = () => {
+        if (this.src !== src) return;
+        const frac = Math.min(1, (ac.currentTime - this.startedAt) / this.buf.duration);
+        this.headEl.style.left = ((reverse ? 1 - frac : frac) * 100) + "%";
+        this.raf = requestAnimationFrame(tick);
+      };
+      tick();
+    }
+    stop() {
+      if (this.src) { const s = this.src; this.src = null; try { s.stop(); } catch (e) {} s.disconnect(); }
+      cancelAnimationFrame(this.raf);
+      this.el.classList.remove("playing-orig", "playing-rev");
+      this.q(".dir").textContent = "";
+    }
+    async startRec() {
+      this.stop();
+      if (!navigator.mediaDevices || !window.MediaRecorder) {
+        this.say("Aufnehmen geht in diesem Browser nicht. Nutze „Datei laden“.", true);
+        return;
+      }
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) {
+        this.say("Kein Zugriff aufs Mikrofon. Erlaube es im Browser oder nutze „Datei laden“.", true);
+        return;
+      }
+      audio();
+      this.stream = stream;
+      this.chunks = [];
+      const rec = new MediaRecorder(stream);
+      this.rec = rec;
+      rec.ondataavailable = e => { if (e.data && e.data.size) this.chunks.push(e.data); };
+      rec.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(this.chunks, { type: rec.mimeType || "audio/webm" });
+        this.loadBlob(blob, null);
+      };
+      rec.start();
+      this.recording = true;
+      this.recStart = performance.now();
+      this.el.classList.add("recording");
+      this.q(".rec-label").textContent = "Stopp";
+      this.timerEl.textContent = "00:00";
+      this.timer = setInterval(() => {
+        this.timerEl.textContent = fmtClock((performance.now() - this.recStart) / 1000);
+      }, 250);
+      this.say("Nimmt auf …");
+    }
+    stopRec() {
+      if (!this.recording) return;
+      this.recording = false;
+      clearInterval(this.timer);
+      this.el.classList.remove("recording");
+      this.q(".rec-label").textContent = "Aufnehmen";
+      try { this.rec.stop(); } catch (e) {}
+      this.say("Wird verarbeitet …");
+    }
+    async loadBlob(blob, name) {
+      try {
+        const data = await blob.arrayBuffer();
+        const buf = await new Promise((res, rej) => {
+          const p = audio().decodeAudioData(data, res, rej);
+          if (p && p.catch) p.catch(rej);
+        });
+        if (!buf.length) throw new Error("leer");
+        this.setBuffer(buf, false);
+        this.say(name ? "Geladen: " + name : "Aufnahme fertig. Spiel sie normal oder rückwärts ab.");
+      } catch (e) {
+        this.say("Die Aufnahme ließ sich nicht lesen. Versuch es noch einmal oder mit einer anderen Datei.", true);
+      }
+    }
+  }
+
+  const decks = [new Deck("A", sampleA), new Deck("B", sampleB)];
+  document.getElementById("bothFwd").addEventListener("click", () => decks.forEach(d => d.play(false)));
+  document.getElementById("bothRev").addEventListener("click", () => decks.forEach(d => d.play(true)));
+  document.getElementById("bothStop").addEventListener("click", () => decks.forEach(d => d.stop()));
+
+  let rt;
+  window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => decks.forEach(d => d.draw()), 120); });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => decks.forEach(d => d.draw()));
+  new MutationObserver(() => decks.forEach(d => d.draw())).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+})();
+</script>
